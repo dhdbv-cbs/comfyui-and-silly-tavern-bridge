@@ -1,0 +1,77 @@
+/* 1. 触发按钮样式 */
+.comfy-trigger-btn {
+    cursor: pointer;
+    opacity: 0.7;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; 
+    height: 30px;
+}
+.comfy-trigger-btn:hover {
+    opacity: 1;
+    color: var(--SmartThemeQuoteColor);
+}
+
+/* 2. 模态框背景遮罩 (关键：z-index 要大) */
+#comfy-workflow-modal {
+    display: none; /* 默认隐藏 */
+    position: fixed;
+    z-index: 99999; /* 设为最大，确保在最上层 */
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.7);
+    backdrop-filter: blur(2px);
+    align-items: center;
+    justify-content: center;
+}
+
+/* 3. 模态框内容 */
+.comfy-modal-content {
+    background-color: var(--SmartThemeBlurTint);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh; /* 防止太高超出屏幕 */
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    color: var(--SmartThemeBodyColor);
+}
+
+.comfy-modal-header {
+    font-size: 1.2em;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.comfy-close-btn {
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 24px;
+}
+
+#comfy-params-container {
+    flex: 1; /* 自动占据剩余高度 */
+    overflow-y: auto;
+    border: 1px solid var(--SmartThemeBorderColor);
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    margin-bottom: 10px;
+}
+
+/* 节点样式 */
+.node-group { margin-bottom: 10px; padding: 5px; background: rgba(255,255,255,0.05); }
+.param-row { display: flex; margin-bottom: 5px; font-size: 0.8em; align-items: center; }
+.param-label { width: 30%; overflow: hidden; text-overflow: ellipsis; }
+.param-input { width: 70%; background: var(--SmartThemeInputBackground); color: var(--SmartThemeInputColor); border: 1px solid var(--SmartThemeBorderColor); }

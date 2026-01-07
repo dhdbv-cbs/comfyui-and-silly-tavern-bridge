@@ -1,0 +1,10 @@
+{
+    "display_name": "ComfyUI Flow Bridge",
+    "name": "comfyui-flow-bridge",
+    "version": "1.0.0",
+    "author": "dhdbv-cbs",
+    "description": "ComfyUI integration for SillyTavern",
+    "js": "index.js",
+    "css": "style.css",
+    "loading_order": 1
+}
