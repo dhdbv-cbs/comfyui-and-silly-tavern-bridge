@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         ComfyUI Flow Bridge V53.11 (Mobile & Desktop)
+// @name         ComfyUI Flow Bridge V53.12 (Mobile & Desktop)
 // @namespace    http://tampermonkey.net/
-// @version      53.11
-// @description  ComfyUI Bridge for SillyTavern with Mobile Support & Logic Fixes
+// @version      53.12
+// @description  ComfyUI Bridge for SillyTavern with Mobile Pinch-to-Zoom & Logic Fixes
 // @author       Gemini
 // @match        *://*/*
 // @grant        none
@@ -11,9 +11,9 @@
 (function() {
     'use strict';
 
-    // index.js - V53.11 (Mobile/Desktop Responsive + Touch Canvas + Logic Fixes + Bottom Padding Fix)
+    // index.js - V53.12 (Mobile Pinch Zoom + Context Menu Fix + Padding Fix)
 
-    const extensionName = "comfyui-flow-bridge-v53-11";
+    const extensionName = "comfyui-flow-bridge-v53-12";
     let comfyURL = localStorage.getItem("cf_v53_api_url") || ""; 
     let clientId = "client_" + Date.now(); 
 
@@ -79,7 +79,15 @@
 
     let apiPresets = JSON.parse(localStorage.getItem("cf_v53_api_presets") || "[]");
     let visPresets = JSON.parse(localStorage.getItem("cf_v53_vis_presets") || "[]");
-    let canvasState = { scale: 1, x: 0, y: 0, isPanning: false, isDraggingNode: false, draggedNodeId: null, lastX: 0, lastY: 0, zIndexCounter: 100 };
+    
+    // Canvas State with Pinch support
+    let canvasState = { 
+        scale: 1, x: 0, y: 0, 
+        isPanning: false, isDraggingNode: false, 
+        draggedNodeId: null, lastX: 0, lastY: 0, 
+        lastDist: 0, // For pinch zoom
+        zIndexCounter: 100 
+    };
 
     // ----------------------------------------
     // 0. 样式注入
@@ -139,7 +147,7 @@
             .cf-btn.orange { background: #e67700; }
             .cf-btn.gray { background: #444; color: #aaa; } 
             
-            /* 修改部分：增加了 padding-bottom: 150px 以适应手机遮挡 */
+            /* Mobile Scroll Fix */
             .cf-scroll-y { overflow-y: auto; padding: 20px; padding-bottom: 150px !important; box-sizing: border-box; }
             
             .cf-group { background: #1a1a1a; padding: 15px; border-radius: 6px; border: 1px solid #333; margin-bottom: 15px; }
@@ -195,7 +203,12 @@
             #cf-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #2f9e44; color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: bold; z-index: 1000000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
             #cf-toast.show { opacity: 1; top: 30px; }
 
-            #cf-canvas-viewport { width: 100%; height: 100%; background: #080808; overflow: hidden; position: relative; cursor: grab; background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; }
+            #cf-canvas-viewport { 
+                width: 100%; height: 100%; background: #080808; overflow: hidden; position: relative; cursor: grab; 
+                background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; 
+                touch-action: none; /* Crucial for mobile pinch support */
+                user-select: none; -webkit-user-select: none;
+            }
             #cf-canvas-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
             .cf-canvas-node { position: absolute; background: rgba(35,35,35,0.95); border-radius: 6px; box-shadow: 0 6px 15px rgba(0,0,0,0.6); min-width: 220px; display: flex; flex-direction: column; border: 1px solid #444; font-size: 12px; user-select: none; }
             .cf-canvas-node-head { background: #2d2d2d; color: #eee; padding: 6px 10px; font-size: 12px; font-weight: bold; border-top-left-radius: 6px; border-top-right-radius: 6px; cursor: grab; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
@@ -683,7 +696,7 @@
 
     window.exportBackup = function() {
         const backupData = {
-            version: "V53.11",
+            version: "V53.12",
             timestamp: Date.now(),
             presets: presets,
             promptPanels: promptPanels,
@@ -1479,7 +1492,7 @@
         updateSystemPromptPreview(); 
     }
 
-    window.deletePresetItem = function(type, id) { if(!confirm("确认删除?")) return; presets[type] = presets[type].filter(p => p.id !== id); savePresetsToStorage(type); renderPresetList(type); updateSystemPromptPreview(); window.renderCharacterHistorySelect(); }
+    window.deletePresetItem = function(type, id) { if(!confirm("删除?")) return; presets[type] = presets[type].filter(p => p.id !== id); savePresetsToStorage(type); renderPresetList(type); updateSystemPromptPreview(); window.renderCharacterHistorySelect(); }
     function savePresetsToStorage(type) { try { localStorage.setItem(`cf_v53_${type}`, JSON.stringify(presets[type])); } catch(e) { console.error(e); } }
     async function fetchResources() { if (!comfyURL) return; try { const res = await fetch(`${comfyURL}/object_info/LoraLoader`); if (res.ok) { const data = await res.json(); if (data && data.LoraLoader && data.LoraLoader.input && data.LoraLoader.input.required && data.LoraLoader.input.required.lora_name) { resourceCache.loras = data.LoraLoader.input.required.lora_name[0]; } } } catch(e) {} try { const res = await fetch(`${comfyURL}/embeddings`); if (res.ok) { const data = await res.json(); if (Array.isArray(data)) resourceCache.embeddings = data; } } catch(e) {} renderPromptPanels(); }
 
@@ -1573,16 +1586,26 @@
     function drawLinks() { if(!visualWorkflow || !visualWorkflow.links) return; const ls = document.getElementById("cf-canvas-links"); let ph = ""; const pm = {}; visualWorkflow.nodes.forEach(n => pm[n.id] = {x: n.pos[0], y: n.pos[1]}); visualWorkflow.links.forEach(l => { const oid = l[1], os = l[2], tid = l[3], ts = l[4]; const on = pm[oid], tn = pm[tid]; const off = socketCache[oid]?.out[os], tff = socketCache[tid]?.in[ts]; if(!on || !tn || !off || !tff) return; const sx = on.x + off.x; const sy = on.y + off.y; const ex = tn.x + tff.x; const ey = tn.y + tff.y; const d = Math.abs(ex - sx) * 0.5; ph += `<path d="M ${sx} ${sy} C ${sx + d} ${sy}, ${ex - d} ${ey}, ${ex} ${ey}" class="cf-link-path" stroke="${getSocketColor(l[5])}"></path>`; }); ls.innerHTML = ph; }
     function renderNodeWidgets(nid, type, inps, cont) { if(!nodeDefinitions[type]) return; const def = nodeDefinitions[type]; const idefs = { ...(def.input?.required || {}), ...(def.input?.optional || {}) }; for (const k in inps) { let v = inps[k]; if (Array.isArray(v)) continue; let idef = idefs[k]; if(!idef) continue; let t = idef[0]; let h = ""; if (k === 'image' && typeof v === 'string') { const src = v.startsWith("http") ? v : `${comfyURL}/view?filename=${v}&type=input`; h = `<div class="cf-preview-box"><img src="${src}" id="pv-${nid}-${k}" class="cf-preview-img"></div><div class="cf-widget-row"><span class="cf-widget-label">Image</span><label class="cf-mini-btn">⬆<input type="file" accept="image/*" style="display:none" onchange="uploadHandler(this, '${nid}', '${k}')"></label></div>`; } else if (Array.isArray(t)) { h = `<div class="cf-widget-row"><span class="cf-widget-label">${k}</span><select class="cf-sel cf-sync" data-id="${nid}" data-key="${k}">`; t.forEach(o => h += `<option value="${o}" ${o===v?"selected":""}>${o}</option>`); h += `</select></div>`; } else if (k.includes("seed") || k === "seed") { h = `<div class="cf-widget-row"><span class="cf-widget-label">Seed</span><input type="number" class="cf-inp cf-sync" data-id="${nid}" data-key="${k}" value="${v}" style="width:70px;"><button class="cf-mini-btn" onclick="randomSeed('${nid}', '${k}')">🎲</button></div>`; } else if (t === "INT" || t === "FLOAT" || typeof v === 'number') { h = `<div class="cf-widget-row"><span class="cf-widget-label">${k}</span><input type="number" step="any" class="cf-inp cf-sync" data-id="${nid}" data-key="${k}" value="${v}"></div>`; } else if (t === "STRING" || typeof v === 'string') { if (v.length > 20 || k.includes("text")) { h = `<div style="padding:2px 6px;"><span class="cf-widget-label">${k}</span><textarea class="cf-inp cf-sync" data-id="${nid}" data-key="${k}" rows="2">${v}</textarea></div>`; } else { h = `<div class="cf-widget-row"><span class="cf-widget-label">${k}</span><input type="text" class="cf-inp cf-sync" data-id="${nid}" data-key="${k}" value="${v}"></div>`; } } if(h) cont.insertAdjacentHTML('beforeend', h); } cont.querySelectorAll(".cf-sync").forEach(e => { e.addEventListener('input', (ev) => { let v = ev.target.value; if(ev.target.tagName === 'INPUT' && ev.target.type === 'number') v = Number(v); if(apiWorkflow && apiWorkflow[nid]) { apiWorkflow[nid].inputs[ev.target.dataset.key] = v; localStorage.setItem("cf_v53_api_json", JSON.stringify(apiWorkflow)); } }); }); }
     
-    // V53.11: Init Canvas Controls with Mobile Touch Support
+    // V53.12: Init Canvas Controls with Pinch Zoom Support & Context Menu Block
     function initCanvasControls() { 
         const vp = document.getElementById("cf-canvas-viewport"); 
         const w = document.getElementById("cf-canvas-world"); 
+
+        // Block context menu (Right click / Long press)
+        vp.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); return false; });
         
         const up = () => { 
             w.style.transform = `translate(${canvasState.x}px, ${canvasState.y}px) scale(${canvasState.scale})`; 
         }; 
 
-        // Helper to get coordinates (Mouse or Touch)
+        // Helper: distance between two touches
+        const getDist = (e) => {
+            if (e.touches.length < 2) return 0;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
         const getXY = (e) => {
             if(e.touches && e.touches.length > 0) {
                 return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -1591,8 +1614,14 @@
         };
 
         const startDrag = (e) => {
-            // Check if touch target is a button or input, if so, allow default action
             if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(e.target.tagName)) return;
+
+            // Pinch Start
+            if (e.touches && e.touches.length === 2) {
+                canvasState.lastDist = getDist(e);
+                e.preventDefault();
+                return;
+            }
 
             const h = e.target.closest(".cf-canvas-node-head");
             const pos = getXY(e);
@@ -1603,17 +1632,30 @@
                 canvasState.lastX = pos.x; 
                 canvasState.lastY = pos.y; 
                 h.parentElement.style.zIndex = ++canvasState.zIndexCounter; 
-                e.preventDefault(); // Stop text selection
+                e.preventDefault(); 
             } else { 
                 canvasState.isPanning = true; 
                 canvasState.lastX = pos.x; 
                 canvasState.lastY = pos.y; 
                 vp.classList.add("panning"); 
-                // e.preventDefault(); // Optional: might block scrolling if needed
+                // e.preventDefault(); // allow some interactions, but pinch handles prevents
             } 
         };
 
         const moveDrag = (e) => {
+            // Pinch Move
+            if (e.touches && e.touches.length === 2) {
+                const dist = getDist(e);
+                if (canvasState.lastDist) {
+                    const delta = dist / canvasState.lastDist;
+                    canvasState.scale = Math.min(Math.max(0.1, canvasState.scale * delta), 5);
+                    up();
+                }
+                canvasState.lastDist = dist;
+                e.preventDefault();
+                return;
+            }
+
             const pos = getXY(e);
             
             if(canvasState.isDraggingNode && canvasState.draggedNodeId !== null) { 
@@ -1628,35 +1670,38 @@
                 } 
                 canvasState.lastX = pos.x; 
                 canvasState.lastY = pos.y; 
-                e.preventDefault(); // Prevent page scroll while dragging node
+                e.preventDefault(); 
             } else if(canvasState.isPanning) { 
                 canvasState.x += pos.x - canvasState.lastX; 
                 canvasState.y += pos.y - canvasState.lastY; 
                 canvasState.lastX = pos.x; 
                 canvasState.lastY = pos.y; 
                 up(); 
-                e.preventDefault(); // Prevent page scroll while panning
+                e.preventDefault(); 
             } 
         };
 
-        const endDrag = () => { 
+        const endDrag = (e) => { 
+            if (e.touches && e.touches.length > 0) return; // Still fingers on screen
+
             canvasState.isPanning = false; 
             canvasState.isDraggingNode = false; 
+            canvasState.lastDist = 0; // Reset pinch
             vp.classList.remove("panning"); 
             if(visualWorkflow) localStorage.setItem("cf_v53_visual_json", JSON.stringify(visualWorkflow)); 
         };
 
-        // Mouse Events
+        // Mouse
         vp.addEventListener("mousedown", startDrag);
         window.addEventListener("mousemove", moveDrag);
         window.addEventListener("mouseup", endDrag);
 
-        // Touch Events (Passive: false allows preventDefault)
+        // Touch (passive: false for prevention)
         vp.addEventListener("touchstart", startDrag, { passive: false });
         window.addEventListener("touchmove", moveDrag, { passive: false });
         window.addEventListener("touchend", endDrag);
 
-        // Zoom (Mouse Wheel)
+        // Wheel
         vp.addEventListener("wheel", (e) => { 
             e.preventDefault(); 
             const d = e.deltaY > 0 ? 0.9 : 1.1; 
