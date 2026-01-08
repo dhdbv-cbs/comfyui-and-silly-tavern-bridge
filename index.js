@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    // index.js - V53.11 (Mobile/Desktop Responsive + Touch Canvas + Logic Fixes)
+    // index.js - V53.11 (Mobile/Desktop Responsive + Touch Canvas + Logic Fixes + Bottom Padding Fix)
 
     const extensionName = "comfyui-flow-bridge-v53-11";
     let comfyURL = localStorage.getItem("cf_v53_api_url") || ""; 
@@ -138,7 +138,10 @@
             .cf-btn.purple { background: #8e44ad; }
             .cf-btn.orange { background: #e67700; }
             .cf-btn.gray { background: #444; color: #aaa; } 
-            .cf-scroll-y { overflow-y: auto; padding: 20px; box-sizing: border-box; }
+            
+            /* 修改部分：增加了 padding-bottom: 150px 以适应手机遮挡 */
+            .cf-scroll-y { overflow-y: auto; padding: 20px; padding-bottom: 150px !important; box-sizing: border-box; }
+            
             .cf-group { background: #1a1a1a; padding: 15px; border-radius: 6px; border: 1px solid #333; margin-bottom: 15px; }
             .cf-label { color: #aaa; font-size: 12px; margin-bottom: 6px; display:block; }
             .cf-status-label { font-size: 11px; color: #22b8cf; margin-left: 8px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(34, 184, 207, 0.3); }
